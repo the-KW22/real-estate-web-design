@@ -4,9 +4,19 @@
  */
 
 import { useRef, useState, useEffect } from "react";
-import { motion, useInView } from "motion/react";
+import {
+  motion,
+  useInView,
+  useScroll,
+  useTransform,
+  useSpring,
+  AnimatePresence,
+} from "motion/react";
 import { ArrowUpRight, Search, BedDouble, Bath, Ruler, MapPin, Mail, Phone, Menu, X } from "lucide-react";
 import Lenis from "lenis";
+import { gsap } from "gsap";
+
+// ─── SVG Brand Icons ──────────────────────────────────────────────────────────
 
 const IconInstagram = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -24,54 +34,14 @@ const IconLinkedin = () => (
   </svg>
 );
 
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
 const stats = [
   { value: 12, prefix: "", suffix: "+", decimals: 0, label: "Years in the Bay Area" },
   { value: 2.4, prefix: "$", suffix: "B", decimals: 1, label: "Total Sales Volume" },
   { value: 1200, prefix: "", suffix: "+", decimals: 0, label: "Homes Closed" },
   { value: 98, prefix: "", suffix: "%", decimals: 0, label: "Client Satisfaction" },
 ];
-
-function StatCard({ stat, index }: { stat: typeof stats[0]; index: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true });
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!isInView) return;
-    const start = performance.now();
-    const duration = 1800;
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(eased * stat.value);
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }, [isInView, stat.value]);
-
-  const display =
-    stat.decimals > 0
-      ? count.toFixed(stat.decimals)
-      : Math.floor(count).toLocaleString();
-
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.08, duration: 0.6 }}
-      className="p-6 md:p-8 bg-white border border-stone-200 rounded-[24px] flex flex-col justify-between min-h-[130px] shadow-sm"
-    >
-      <p className="text-3xl md:text-4xl font-display font-bold tracking-tight text-[#0f0f0f]">
-        {stat.prefix}{display}{stat.suffix}
-      </p>
-      <p className="text-[10px] text-stone-400 uppercase tracking-[0.2em] mt-3 leading-snug">
-        {stat.label}
-      </p>
-    </motion.div>
-  );
-}
 
 type FilterType = "All" | "For Sale" | "For Rent";
 
@@ -270,6 +240,137 @@ const posts = [
   },
 ];
 
+// ─── Shared animation variants ────────────────────────────────────────────────
+
+const luxuryEase = [0.22, 1, 0.36, 1] as const;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 32 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.75, ease: luxuryEase, delay },
+  }),
+};
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.1 } },
+};
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: luxuryEase } },
+};
+
+// ─── GSAP Marquee Strip ───────────────────────────────────────────────────────
+
+const marqueeItems = [
+  "Bay Area Real Estate",
+  "Since 2012",
+  "$2.4B in Sales",
+  "1,200+ Homes Closed",
+  "98% Client Satisfaction",
+  "Pacific Heights",
+  "Noe Valley",
+  "The Marina",
+  "Marin County",
+];
+
+function MarqueeStrip() {
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.to(innerRef.current, {
+        xPercent: -50,
+        ease: "none",
+        duration: 32,
+        repeat: -1,
+      });
+    });
+    return () => ctx.revert();
+  }, []);
+
+  const doubled = [...marqueeItems, ...marqueeItems];
+
+  return (
+    <div className="bg-[#0c0d11] border-y border-white/[0.06] py-[14px] overflow-hidden select-none">
+      <div ref={innerRef} className="flex items-center w-max">
+        {doubled.map((item, i) => (
+          <span key={i} className="flex items-center shrink-0">
+            <span className="text-white/30 text-[10px] font-semibold uppercase tracking-[0.38em] px-7 whitespace-nowrap">
+              {item}
+            </span>
+            <span className="text-white/15 text-[8px]">✦</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Scroll Progress Bar ──────────────────────────────────────────────────────
+
+function ScrollProgress() {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 180, damping: 38 });
+  return (
+    <motion.div
+      className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-amber-500/60 via-amber-300 to-amber-500/60 z-[200] origin-left"
+      style={{ scaleX }}
+    />
+  );
+}
+
+// ─── Stat Card with count-up ──────────────────────────────────────────────────
+
+function StatCard({ stat, index }: { stat: typeof stats[0]; index: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isInView = useInView(ref, { once: true });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isInView) return;
+    const start = performance.now();
+    const duration = 1800;
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(eased * stat.value);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [isInView, stat.value]);
+
+  const display =
+    stat.decimals > 0
+      ? count.toFixed(stat.decimals)
+      : Math.floor(count).toLocaleString();
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 28 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5, transition: { duration: 0.2 } }}
+      viewport={{ once: true }}
+      transition={{ delay: index * 0.09, duration: 0.7, ease: luxuryEase }}
+      className="p-6 md:p-8 bg-white border border-stone-200 rounded-[24px] flex flex-col justify-between min-h-[130px] shadow-sm hover:shadow-md transition-shadow duration-300 cursor-default"
+    >
+      <p className="text-3xl md:text-4xl font-display font-bold tracking-tight text-[#0f0f0f]">
+        {stat.prefix}{display}{stat.suffix}
+      </p>
+      <p className="text-[10px] text-stone-400 uppercase tracking-[0.2em] mt-3 leading-snug">
+        {stat.label}
+      </p>
+    </motion.div>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+
 export default function App() {
   const navLinks = ["Home", "About", "Properties", "Agents", "Blog"];
   const filters: FilterType[] = ["All", "For Sale", "For Rent"];
@@ -277,6 +378,16 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const filtered = activeFilter === "All" ? properties : properties.filter(p => p.status === activeFilter);
 
+  // Hero scroll-based parallax
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const videoScale = useTransform(heroProgress, [0, 1], [1, 1.14]);
+  const overlayOpacity = useTransform(heroProgress, [0, 1], [0.45, 0.72]);
+
+  // Lenis smooth scroll
   useEffect(() => {
     const lenis = new Lenis({ duration: 1.2, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
     const raf = (time: number) => { lenis.raf(time); requestAnimationFrame(raf); };
@@ -287,60 +398,71 @@ export default function App() {
   return (
     <div className="font-sans">
 
-      {/* ── HERO ─────────────────────────────────────────────────── */}
-      <div className="relative h-[100dvh] flex flex-col overflow-hidden">
-        {/* Video Background */}
-        <div className="absolute inset-0 z-0">
+      {/* ── Scroll progress ──────────────────────────────────────────── */}
+      <ScrollProgress />
+
+      {/* ── HERO ─────────────────────────────────────────────────────── */}
+      <div ref={heroRef} id="home" className="relative h-[100dvh] flex flex-col overflow-hidden">
+
+        {/* Video Background — parallax scale on scroll */}
+        <motion.div className="absolute inset-0 z-0" style={{ scale: videoScale }}>
           <video autoPlay muted loop playsInline className="w-full h-full object-cover">
             <source src="/hf_20260417_112519_ee251b70-18a7-4bd4-9f24-073805cb8311.mp4" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-black/45" />
-        </div>
+          <motion.div className="absolute inset-0 bg-black" style={{ opacity: overlayOpacity }} />
+        </motion.div>
 
         {/* Mobile full-screen menu */}
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-[#0c0d11]/95 backdrop-blur-xl flex flex-col px-6 py-5"
-          >
-            <div className="flex items-center justify-between mb-10">
-              <span className="text-2xl font-display font-bold tracking-[0.2em] text-white">BRICKLY</span>
-              <button onClick={() => setMenuOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full border border-white/15 text-white/60 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <nav className="flex flex-col gap-1 flex-1">
-              {navLinks.map((link) => (
-                <a
-                  key={link}
-                  href={`#${link.toLowerCase()}`}
-                  onClick={() => setMenuOpen(false)}
-                  className="text-4xl font-display font-bold text-white/30 hover:text-white transition-colors py-3 border-b border-white/[0.06]"
-                >
-                  {link}
-                </a>
-              ))}
-            </nav>
-            <div className="mt-8 space-y-3">
-              <div className="flex items-center gap-3 px-5 py-3.5 bg-white/[0.05] border border-white/10 rounded-2xl">
-                <Search className="w-4 h-4 text-white/35 shrink-0" />
-                <input type="text" placeholder="Search properties…" className="bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none flex-1" />
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3, ease: luxuryEase }}
+              className="fixed inset-0 z-[60] bg-[#0c0d11]/95 backdrop-blur-xl flex flex-col px-6 py-5"
+            >
+              <div className="flex items-center justify-between mb-10">
+                <span className="text-2xl font-display font-bold tracking-[0.2em] text-white">BRICKLY</span>
+                <button onClick={() => setMenuOpen(false)} className="w-10 h-10 flex items-center justify-center rounded-full border border-white/15 text-white/60 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-white/10 border border-white/20 rounded-2xl">
-                <span className="text-sm font-semibold tracking-wider uppercase text-white">Contact Us</span>
-                <ArrowUpRight className="w-4 h-4 text-white" />
-              </button>
-            </div>
-          </motion.div>
-        )}
+              <nav className="flex flex-col gap-1 flex-1">
+                {navLinks.map((link, i) => (
+                  <motion.a
+                    key={link}
+                    href={`#${link.toLowerCase()}`}
+                    onClick={() => setMenuOpen(false)}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.06, duration: 0.4, ease: luxuryEase }}
+                    className="text-4xl font-display font-bold text-white/30 hover:text-white transition-colors py-3 border-b border-white/[0.06]"
+                  >
+                    {link}
+                  </motion.a>
+                ))}
+              </nav>
+              <div className="mt-8 space-y-3">
+                <div className="flex items-center gap-3 px-5 py-3.5 bg-white/[0.05] border border-white/10 rounded-2xl">
+                  <Search className="w-4 h-4 text-white/35 shrink-0" />
+                  <input type="text" placeholder="Search properties…" className="bg-transparent text-sm text-white placeholder:text-white/30 focus:outline-none flex-1" />
+                </div>
+                <button className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-white/10 border border-white/20 rounded-2xl">
+                  <span className="text-sm font-semibold tracking-wider uppercase text-white">Contact Us</span>
+                  <ArrowUpRight className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Header / Navbar */}
         <header className="relative z-50 flex items-center justify-between px-6 md:px-8 py-5 max-w-7xl mx-auto w-full gap-4">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: luxuryEase }}
             className="text-2xl font-display font-bold tracking-[0.2em] text-white shrink-0"
           >
             BRICKLY
@@ -348,14 +470,22 @@ export default function App() {
 
           {/* Desktop nav + search pill */}
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.1, ease: luxuryEase }}
             className="hidden md:flex items-center px-6 py-2.5 bg-white/[0.04] backdrop-blur-sm border border-white/10 rounded-full gap-6 flex-1 max-w-[43rem]"
           >
-            {navLinks.map((link) => (
-              <a key={link} href={`#${link.toLowerCase()}`} className="text-white/70 hover:text-white transition-colors text-sm font-medium whitespace-nowrap">
+            {navLinks.map((link, i) => (
+              <motion.a
+                key={link}
+                href={`#${link.toLowerCase()}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.25 + i * 0.07, duration: 0.5 }}
+                className="text-white/70 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
+              >
                 {link}
-              </a>
+              </motion.a>
             ))}
             <div className="w-px h-4 bg-white/20 shrink-0" />
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -364,18 +494,25 @@ export default function App() {
             </div>
           </motion.div>
 
-          {/* Desktop: Contact Us | Mobile: Hamburger */}
+          {/* Mobile hamburger */}
           <motion.button
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, ease: luxuryEase }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => setMenuOpen(true)}
             className="md:hidden w-10 h-10 flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 rounded-full hover:bg-white/20 transition-all"
           >
             <Menu className="w-5 h-5 text-white" />
           </motion.button>
+
+          {/* Desktop Contact Us */}
           <motion.button
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: luxuryEase }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             className="hidden md:flex items-center space-x-2 px-5 py-2.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full hover:bg-white/20 transition-all group shrink-0"
           >
             <span className="text-sm font-semibold tracking-wider uppercase">Contact Us</span>
@@ -383,54 +520,107 @@ export default function App() {
           </motion.button>
         </header>
 
-        {/* Hero card — centered, top ~30% */}
+        {/* Hero card — entrance + floating loop */}
         <main className="relative z-10 flex-1 flex flex-col items-center justify-start pt-8 md:pt-14 px-5 md:px-8">
+          {/* Entrance wrapper */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="w-full max-w-xl p-6 sm:p-8 md:p-10 bg-white/[0.06] backdrop-blur-md border border-white/15 rounded-[28px] md:rounded-[36px] shadow-2xl relative overflow-hidden text-center"
+            transition={{ duration: 0.9, delay: 0.3, ease: luxuryEase }}
+            className="w-full max-w-xl"
           >
-            <div className="absolute -top-20 -right-20 w-56 h-56 bg-amber-500/10 blur-[80px] rounded-full" />
-            <div className="absolute -bottom-20 -left-20 w-56 h-56 bg-slate-500/10 blur-[80px] rounded-full" />
+            {/* Continuous floating animation */}
+            <motion.div
+              animate={{ y: [0, -11, 0] }}
+              transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut", delay: 1.8 }}
+              className="p-6 sm:p-8 md:p-10 bg-white/[0.06] backdrop-blur-md border border-white/15 rounded-[28px] md:rounded-[36px] shadow-2xl relative overflow-hidden text-center"
+            >
+              <div className="absolute -top-20 -right-20 w-56 h-56 bg-amber-500/10 blur-[80px] rounded-full" />
+              <div className="absolute -bottom-20 -left-20 w-56 h-56 bg-slate-500/10 blur-[80px] rounded-full" />
 
-            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.3em] text-white/40 mb-3 md:mb-4">
-              Brickly — Bay Area & Sacramento
-            </p>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold leading-[1.15] mb-3 md:mb-4">
-              Find Your Place to Call Home
-            </h1>
-            <p className="text-white/55 text-sm md:text-base font-light mb-6 md:mb-8 leading-relaxed">
-              Brickly connects you with trusted local agents and premium listings across the Bay Area and Sacramento — from first home to forever home.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button className="px-7 sm:px-9 py-3 sm:py-3.5 bg-white text-black font-bold uppercase tracking-widest rounded-full hover:bg-white/90 transition-all">
-                <span className="text-xs sm:text-sm">Browse Listings</span>
-              </button>
-              <button className="px-5 sm:px-6 py-3 sm:py-3.5 bg-white/10 border border-white/20 rounded-full hover:bg-white/15 transition-all">
-                <span className="text-xs sm:text-sm font-medium text-white/80">Meet Our Agents</span>
-              </button>
-            </div>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.6 }}
+                className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.3em] text-white/40 mb-3 md:mb-4"
+              >
+                Brickly — Bay Area & Sacramento
+              </motion.p>
+              <motion.h1
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.85, duration: 0.7, ease: luxuryEase }}
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-bold leading-[1.15] mb-3 md:mb-4"
+              >
+                Find Your Place to Call Home
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.0, duration: 0.6 }}
+                className="text-white/55 text-sm md:text-base font-light mb-6 md:mb-8 leading-relaxed"
+              >
+                Brickly connects you with trusted local agents and premium listings across the Bay Area and Sacramento — from first home to forever home.
+              </motion.p>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.15, duration: 0.6 }}
+                className="flex flex-wrap items-center justify-center gap-3"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-7 sm:px-9 py-3 sm:py-3.5 bg-white text-black font-bold uppercase tracking-widest rounded-full hover:bg-white/90 transition-all"
+                >
+                  <span className="text-xs sm:text-sm">Browse Listings</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="px-5 sm:px-6 py-3 sm:py-3.5 bg-white/10 border border-white/20 rounded-full hover:bg-white/15 transition-all"
+                >
+                  <span className="text-xs sm:text-sm font-medium text-white/80">Meet Our Agents</span>
+                </motion.button>
+              </motion.div>
+            </motion.div>
           </motion.div>
         </main>
 
         {/* Decorative vertical rail */}
-        <div className="absolute left-6 bottom-32 z-20 hidden lg:block">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5, duration: 1 }}
+          className="absolute left-6 bottom-32 z-20 hidden lg:block"
+        >
           <span className="text-[10px] font-display font-medium uppercase tracking-[0.5em] text-white/30 [writing-mode:vertical-rl] rotate-180">
             Luxury Real Estate Redefined
           </span>
-        </div>
+        </motion.div>
 
         {/* Scroll indicator */}
-        <div className="absolute right-6 bottom-8 z-20 hidden sm:flex flex-col items-center gap-3">
-          <div className="w-px h-14 bg-gradient-to-t from-white/40 to-transparent" />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.6, duration: 1 }}
+          className="absolute right-6 bottom-8 z-20 hidden sm:flex flex-col items-center gap-3"
+        >
+          <motion.div
+            animate={{ scaleY: [1, 0.6, 1], opacity: [0.4, 0.8, 0.4] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-px h-14 bg-gradient-to-t from-white/40 to-transparent origin-bottom"
+          />
           <span className="text-[10px] font-display font-medium uppercase tracking-[0.3em] text-white/40 [writing-mode:vertical-rl] rotate-180">
             Scroll
           </span>
-        </div>
+        </motion.div>
       </div>
 
-      {/* ── ABOUT ────────────────────────────────────────────────── */}
+      {/* ── MARQUEE STRIP ────────────────────────────────────────────── */}
+      <MarqueeStrip />
+
+      {/* ── ABOUT ────────────────────────────────────────────────────── */}
       <section
         id="about"
         className="relative text-[#0f0f0f] py-16 md:py-24 lg:py-32 px-6 md:px-8 bg-[#fafaf8] overflow-hidden"
@@ -448,22 +638,46 @@ export default function App() {
 
           {/* Intro */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            variants={staggerContainer}
             className="mb-16 md:mb-20"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-5">
+            <motion.p variants={staggerItem} className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-5">
               About Brickly
-            </p>
+            </motion.p>
             <div className="grid md:grid-cols-2 gap-8 md:gap-16 items-end">
-              <h2 className="text-4xl md:text-5xl lg:text-[3.5rem] font-display font-bold leading-[1.1]">
-                Built on Trust.<br />Rooted in the Bay.
-              </h2>
-              <p className="text-stone-500 text-base md:text-lg leading-relaxed">
+              <div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl lg:text-[3.5rem] font-display font-bold leading-[1.1]"
+                  >
+                    Built on Trust.
+                  </motion.h2>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, delay: 0.1, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl lg:text-[3.5rem] font-display font-bold leading-[1.1]"
+                  >
+                    Rooted in the Bay.
+                  </motion.h2>
+                </div>
+              </div>
+              <motion.p
+                variants={staggerItem}
+                className="text-stone-500 text-base md:text-lg leading-relaxed"
+              >
                 Since 2012, Brickly has helped Bay Area families buy, sell, and invest with confidence. We combine deep local knowledge with a client-first approach — because a home is never just a transaction.
-              </p>
+              </motion.p>
             </div>
           </motion.div>
 
@@ -475,27 +689,41 @@ export default function App() {
           </div>
 
           {/* Divider */}
-          <div className="w-full h-px bg-stone-200 mb-20 md:mb-28" />
+          <motion.div
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.9, ease: luxuryEase }}
+            className="w-full h-px bg-stone-200 mb-20 md:mb-28 origin-left"
+          />
 
           {/* Team heading */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            variants={staggerContainer}
             className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12"
           >
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">
+              <motion.p variants={staggerItem} className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">
                 The Team
-              </p>
-              <h3 className="text-3xl md:text-4xl font-display font-bold">
-                The people behind every deal.
-              </h3>
+              </motion.p>
+              <div className="overflow-hidden">
+                <motion.h3
+                  initial={{ y: "100%", opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.75, delay: 0.1, ease: luxuryEase }}
+                  className="text-3xl md:text-4xl font-display font-bold"
+                >
+                  The people behind every deal.
+                </motion.h3>
+              </div>
             </div>
-            <p className="text-stone-500 text-sm max-w-xs leading-relaxed">
+            <motion.p variants={staggerItem} className="text-stone-500 text-sm max-w-xs leading-relaxed">
               Small by design. Every client works directly with a senior agent — no hand-offs, no assistants.
-            </p>
+            </motion.p>
           </motion.div>
 
           {/* Team cards */}
@@ -503,13 +731,13 @@ export default function App() {
             {team.map((member, i) => (
               <motion.div
                 key={member.name}
-                initial={{ opacity: 0, y: 36 }}
+                initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -8, transition: { duration: 0.25, ease: "easeOut" } }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.12, duration: 0.7 }}
-                className="group rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all duration-300"
+                transition={{ delay: i * 0.13, duration: 0.75, ease: luxuryEase }}
+                className="group rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-lg transition-shadow duration-300"
               >
-                {/* Photo */}
                 <div className="aspect-[4/5] overflow-hidden">
                   <img
                     src={member.photo}
@@ -517,7 +745,6 @@ export default function App() {
                     className="w-full h-full object-cover object-top grayscale group-hover:grayscale-0 scale-100 group-hover:scale-105 transition-all duration-500 ease-out"
                   />
                 </div>
-                {/* Info */}
                 <div className="p-6 md:p-7">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-stone-400 mb-1.5">
                     {member.role}
@@ -532,7 +759,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── PROPERTIES ───────────────────────────────────────────── */}
+      {/* ── PROPERTIES ───────────────────────────────────────────────── */}
       <section
         id="properties"
         className="relative text-white py-16 md:py-24 lg:py-32 px-6 md:px-8"
@@ -542,97 +769,108 @@ export default function App() {
           backgroundPosition: "center",
         }}
       >
-        {/* Overlay */}
         <div className="absolute inset-0 bg-[#0c0d11]/75" />
 
         <div className="relative z-10 max-w-7xl mx-auto">
 
           {/* Header row */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            variants={staggerContainer}
             className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"
           >
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/35 mb-3">
+              <motion.p variants={staggerItem} className="text-xs font-semibold uppercase tracking-[0.3em] text-white/35 mb-3">
                 Featured Listings
-              </p>
-              <h2 className="text-4xl md:text-5xl font-display font-bold leading-[1.1]">
-                Find your next home.
-              </h2>
+              </motion.p>
+              <div className="overflow-hidden">
+                <motion.h2
+                  initial={{ y: "100%", opacity: 0 }}
+                  whileInView={{ y: 0, opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.8, delay: 0.1, ease: luxuryEase }}
+                  className="text-4xl md:text-5xl font-display font-bold leading-[1.1]"
+                >
+                  Find your next home.
+                </motion.h2>
+              </div>
             </div>
 
             {/* Filter tabs */}
-            <div className="flex items-center gap-1.5 p-1.5 bg-white/[0.05] border border-white/10 rounded-full self-start md:self-auto">
+            <motion.div
+              variants={staggerItem}
+              className="flex items-center gap-1.5 p-1.5 bg-white/[0.05] border border-white/10 rounded-full self-start md:self-auto"
+            >
               {filters.map((f) => (
-                <button
+                <motion.button
                   key={f}
                   onClick={() => setActiveFilter(f)}
-                  className={`px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${activeFilter === f
-                    ? "bg-white text-black"
-                    : "text-white/50 hover:text-white"
-                    }`}
+                  whileTap={{ scale: 0.95 }}
+                  className={`px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+                    activeFilter === f ? "bg-white text-black" : "text-white/50 hover:text-white"
+                  }`}
                 >
                   {f}
-                </button>
+                </motion.button>
               ))}
-            </div>
+            </motion.div>
           </motion.div>
 
-          {/* Property grid */}
+          {/* Property grid with AnimatePresence for filter transitions */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((property, i) => (
-              <motion.div
-                key={property.id}
-                layout
-                initial={{ opacity: 0, y: 28 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.6 }}
-                className="group rounded-[24px] overflow-hidden bg-[#14151a] border border-white/[0.08] hover:border-white/20 transition-colors duration-300 cursor-pointer"
-              >
-                {/* Image */}
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
-                    src={property.image}
-                    alt={property.address}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                  <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur-md border ${property.status === "For Rent"
-                    ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
-                    : "bg-white/10 border-white/20 text-white"
+            <AnimatePresence mode="popLayout">
+              {filtered.map((property, i) => (
+                <motion.div
+                  key={property.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.93, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.93, transition: { duration: 0.22 } }}
+                  whileHover={{ y: -9, transition: { duration: 0.22, ease: "easeOut" } }}
+                  transition={{ delay: i * 0.07, duration: 0.5, ease: luxuryEase }}
+                  className="group rounded-[24px] overflow-hidden bg-[#14151a] border border-white/[0.08] hover:border-white/20 hover:shadow-xl transition-all duration-300 cursor-pointer"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    <img
+                      src={property.image}
+                      alt={property.address}
+                      className="w-full h-full object-cover group-hover:scale-107 transition-transform duration-600 ease-out"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                    <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur-md border ${
+                      property.status === "For Rent"
+                        ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                        : "bg-white/10 border-white/20 text-white"
                     }`}>
-                    {property.status}
-                  </span>
-                  <p className="absolute bottom-4 left-4 text-[11px] font-medium text-white/60 tracking-wide">
-                    {property.neighborhood}
-                  </p>
-                </div>
-
-                {/* Details */}
-                <div className="p-5">
-                  <p className="text-2xl font-display font-bold mb-1">{property.price}</p>
-                  <p className="flex items-center gap-1.5 text-white/45 text-sm mb-4">
-                    <MapPin className="w-3.5 h-3.5 shrink-0" />
-                    {property.address}, {property.city}
-                  </p>
-                  <div className="flex items-center gap-4 pt-4 border-t border-white/[0.07] text-white/40 text-xs">
-                    <span className="flex items-center gap-1.5">
-                      <BedDouble className="w-3.5 h-3.5" />{property.beds} Beds
+                      {property.status}
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <Bath className="w-3.5 h-3.5" />{property.baths} Baths
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Ruler className="w-3.5 h-3.5" />{property.sqft} sqft
-                    </span>
+                    <p className="absolute bottom-4 left-4 text-[11px] font-medium text-white/60 tracking-wide">
+                      {property.neighborhood}
+                    </p>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="p-5">
+                    <p className="text-2xl font-display font-bold mb-1">{property.price}</p>
+                    <p className="flex items-center gap-1.5 text-white/45 text-sm mb-4">
+                      <MapPin className="w-3.5 h-3.5 shrink-0" />
+                      {property.address}, {property.city}
+                    </p>
+                    <div className="flex items-center gap-4 pt-4 border-t border-white/[0.07] text-white/40 text-xs">
+                      <span className="flex items-center gap-1.5">
+                        <BedDouble className="w-3.5 h-3.5" />{property.beds} Beds
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Bath className="w-3.5 h-3.5" />{property.baths} Baths
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Ruler className="w-3.5 h-3.5" />{property.sqft} sqft
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
 
           {/* View all */}
@@ -640,28 +878,30 @@ export default function App() {
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ delay: 0.3, duration: 0.6 }}
+            transition={{ delay: 0.3, duration: 0.6, ease: luxuryEase }}
             className="flex justify-center mt-12"
           >
-            <button className="flex items-center gap-2 px-8 py-3.5 border border-white/20 rounded-full text-sm font-semibold hover:bg-white/5 transition-all group">
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-2 px-8 py-3.5 border border-white/20 rounded-full text-sm font-semibold hover:bg-white/5 transition-all group"
+            >
               View All Listings
               <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </button>
+            </motion.button>
           </motion.div>
 
         </div>
       </section>
 
-      {/* ── AGENTS ───────────────────────────────────────────────── */}
+      {/* ── AGENTS ───────────────────────────────────────────────────── */}
       <section
         id="agents"
         className="relative text-[#0f0f0f] py-16 md:py-24 lg:py-32 px-6 md:px-8 bg-white overflow-hidden"
         style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)", backgroundSize: "28px 28px" }}
       >
-        {/* Ambient blobs */}
         <div className="absolute top-0 left-1/3 w-[500px] h-[500px] bg-violet-300/25 blur-[140px] rounded-full pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-amber-300/25 blur-[120px] rounded-full pointer-events-none" />
-        {/* Oversized watermark — desktop only */}
         <span className="absolute left-8 top-1/2 -translate-y-1/2 text-[180px] md:text-[260px] font-display font-black text-black/[0.025] leading-none select-none pointer-events-none tracking-tight hidden md:block">
           AGENTS
         </span>
@@ -670,53 +910,78 @@ export default function App() {
 
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            variants={staggerContainer}
             className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-14"
           >
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">Our Agents</p>
-              <h2 className="text-4xl md:text-5xl font-display font-bold leading-[1.1]">
-                Experts you can<br />actually trust.
-              </h2>
+              <motion.p variants={staggerItem} className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">
+                Our Agents
+              </motion.p>
+              <div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl font-display font-bold leading-[1.1]"
+                  >
+                    Experts you can
+                  </motion.h2>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, delay: 0.1, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl font-display font-bold leading-[1.1]"
+                  >
+                    actually trust.
+                  </motion.h2>
+                </div>
+              </div>
             </div>
-            <p className="text-stone-500 text-sm max-w-xs leading-relaxed">
+            <motion.p variants={staggerItem} className="text-stone-500 text-sm max-w-xs leading-relaxed">
               Every Brickly client works directly with a senior agent — no assistants, no hand-offs, no surprises.
-            </p>
+            </motion.p>
           </motion.div>
 
-          {/* Featured agent — full-width horizontal card */}
+          {/* Featured agent */}
           {agents.filter(a => a.featured).map((agent) => (
             <motion.div
               key={agent.name}
-              initial={{ opacity: 0, y: 36 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              whileHover={{ y: -6, transition: { duration: 0.25, ease: "easeOut" } }}
               viewport={{ once: true }}
-              transition={{ duration: 0.75 }}
-              className="group flex flex-col md:flex-row rounded-[32px] overflow-hidden bg-[#fafaf8] border border-stone-200 hover:border-stone-300 hover:shadow-lg transition-all duration-300 mb-5"
+              transition={{ duration: 0.85, ease: luxuryEase }}
+              className="group flex flex-col md:flex-row rounded-[32px] overflow-hidden bg-[#fafaf8] border border-stone-200 hover:border-stone-300 hover:shadow-xl transition-shadow duration-300 mb-5"
             >
-              {/* Photo */}
               <div className="md:w-[38%] aspect-[4/3] md:aspect-auto overflow-hidden shrink-0">
                 <img
                   src={agent.photo}
                   alt={agent.name}
-                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
+                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-600 ease-out"
                 />
               </div>
-
-              {/* Details */}
               <div className="flex flex-col justify-between p-8 md:p-12 flex-1">
                 <div>
-                  <span className="inline-block px-3 py-1 mb-5 rounded-full bg-stone-100 border border-stone-200 text-[11px] font-bold uppercase tracking-widest text-stone-500">
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.3, duration: 0.5 }}
+                    className="inline-block px-3 py-1 mb-5 rounded-full bg-stone-100 border border-stone-200 text-[11px] font-bold uppercase tracking-widest text-stone-500"
+                  >
                     Featured Agent
-                  </span>
+                  </motion.span>
                   <h3 className="text-3xl md:text-4xl font-display font-bold mb-1">{agent.name}</h3>
                   <p className="text-stone-400 text-sm mb-6">{agent.role}</p>
                   <p className="text-stone-500 text-sm md:text-base leading-relaxed mb-8 max-w-lg">{agent.bio}</p>
-
-                  {/* Neighborhoods */}
                   <div className="flex flex-wrap gap-2 mb-8">
                     {agent.areas.map(area => (
                       <span key={area} className="px-3 py-1 rounded-full bg-stone-100 border border-stone-200 text-xs text-stone-500">
@@ -725,9 +990,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-                  {/* Stats */}
                   <div className="flex flex-wrap gap-x-8 gap-y-4">
                     {agent.stats.map(s => (
                       <div key={s.label}>
@@ -736,37 +999,38 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-
-                  <button className="flex items-center gap-2 px-7 py-3 bg-[#0f0f0f] text-white text-sm font-bold uppercase tracking-widest rounded-full hover:bg-stone-800 transition-all group/btn self-start sm:self-auto">
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center gap-2 px-7 py-3 bg-[#0f0f0f] text-white text-sm font-bold uppercase tracking-widest rounded-full hover:bg-stone-800 transition-all group/btn self-start sm:self-auto"
+                  >
                     Contact Sarah
                     <ArrowUpRight className="w-4 h-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
           ))}
 
-          {/* Supporting agents — 2-column grid */}
+          {/* Supporting agents */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {agents.filter(a => !a.featured).map((agent, i) => (
               <motion.div
                 key={agent.name}
-                initial={{ opacity: 0, y: 28 }}
+                initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -7, transition: { duration: 0.22, ease: "easeOut" } }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.12, duration: 0.7 }}
-                className="group flex flex-col sm:flex-row rounded-[28px] overflow-hidden bg-[#fafaf8] border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all duration-300"
+                transition={{ delay: i * 0.14, duration: 0.75, ease: luxuryEase }}
+                className="group flex flex-col sm:flex-row rounded-[28px] overflow-hidden bg-[#fafaf8] border border-stone-200 hover:border-stone-300 hover:shadow-lg transition-shadow duration-300"
               >
-                {/* Photo */}
                 <div className="sm:w-[42%] aspect-[4/3] sm:aspect-auto overflow-hidden shrink-0">
                   <img
                     src={agent.photo}
                     alt={agent.name}
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-600 ease-out"
                   />
                 </div>
-
-                {/* Details */}
                 <div className="flex flex-col justify-between p-6 flex-1">
                   <div>
                     <h3 className="text-xl font-display font-bold mb-0.5">{agent.name}</h3>
@@ -780,8 +1044,6 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-
-                  {/* Stats + button */}
                   <div>
                     <div className="flex gap-5 mb-5 pt-4 border-t border-stone-200">
                       {agent.stats.map(s => (
@@ -791,10 +1053,14 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    <button className="flex items-center gap-2 px-5 py-2.5 border border-stone-300 rounded-full text-xs font-bold uppercase tracking-widest text-stone-700 hover:bg-stone-100 transition-all group/btn">
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      className="flex items-center gap-2 px-5 py-2.5 border border-stone-300 rounded-full text-xs font-bold uppercase tracking-widest text-stone-700 hover:bg-stone-100 transition-all group/btn"
+                    >
                       Contact {agent.name.split(" ")[0]}
                       <ArrowUpRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
               </motion.div>
@@ -804,16 +1070,14 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── BLOG ─────────────────────────────────────────────────── */}
+      {/* ── BLOG ─────────────────────────────────────────────────────── */}
       <section
         id="blog"
         className="relative text-[#0f0f0f] py-16 md:py-24 lg:py-32 px-6 md:px-8 bg-[#fafaf8] overflow-hidden"
         style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)", backgroundSize: "28px 28px" }}
       >
-        {/* Ambient blobs */}
         <div className="absolute -top-20 left-1/4 w-[500px] h-[500px] bg-orange-300/25 blur-[130px] rounded-full pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-[450px] h-[450px] bg-rose-300/20 blur-[120px] rounded-full pointer-events-none" />
-        {/* Oversized watermark — desktop only */}
         <span className="absolute right-8 bottom-16 text-[180px] md:text-[260px] font-display font-black text-black/[0.025] leading-none select-none pointer-events-none tracking-tight hidden md:block">
           JOURNAL
         </span>
@@ -822,42 +1086,71 @@ export default function App() {
 
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial="hidden"
+            whileInView="visible"
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            variants={staggerContainer}
             className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12"
           >
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">The Journal</p>
-              <h2 className="text-4xl md:text-5xl font-display font-bold leading-[1.1]">
-                Insights for every<br />step of the journey.
-              </h2>
+              <motion.p variants={staggerItem} className="text-xs font-semibold uppercase tracking-[0.3em] text-stone-400 mb-3">
+                The Journal
+              </motion.p>
+              <div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl font-display font-bold leading-[1.1]"
+                  >
+                    Insights for every
+                  </motion.h2>
+                </div>
+                <div className="overflow-hidden">
+                  <motion.h2
+                    initial={{ y: "100%", opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.8, delay: 0.1, ease: luxuryEase }}
+                    className="text-4xl md:text-5xl font-display font-bold leading-[1.1]"
+                  >
+                    step of the journey.
+                  </motion.h2>
+                </div>
+              </div>
             </div>
-            <button className="flex items-center gap-2 px-6 py-2.5 border border-stone-300 rounded-full text-sm font-medium text-stone-700 hover:bg-stone-100 transition-all group self-start md:self-auto shrink-0">
+            <motion.button
+              variants={staggerItem}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-2 px-6 py-2.5 border border-stone-300 rounded-full text-sm font-medium text-stone-700 hover:bg-stone-100 transition-all group self-start md:self-auto shrink-0"
+            >
               View All Posts
               <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </button>
+            </motion.button>
           </motion.div>
 
-          {/* Bento grid — featured large + 2 stacked, then 3 equal */}
+          {/* Bento grid row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-5 mb-5">
 
             {/* Featured post */}
             {posts.filter(p => p.featured).map(post => (
               <motion.article
                 key={post.id}
-                initial={{ opacity: 0, y: 28 }}
+                initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -7, transition: { duration: 0.25, ease: "easeOut" } }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.7 }}
-                className="md:col-span-7 group relative rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col"
+                transition={{ duration: 0.75, ease: luxuryEase }}
+                className="md:col-span-7 group relative rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-xl transition-shadow duration-300 cursor-pointer flex flex-col"
               >
                 <div className="relative h-64 md:h-80 overflow-hidden shrink-0">
                   <img
                     src={post.image}
                     alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 ease-out"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-[11px] font-bold uppercase tracking-wider text-white">
@@ -886,17 +1179,18 @@ export default function App() {
               {posts.slice(1, 3).map((post, i) => (
                 <motion.article
                   key={post.id}
-                  initial={{ opacity: 0, x: 24 }}
+                  initial={{ opacity: 0, x: 28 }}
                   whileInView={{ opacity: 1, x: 0 }}
+                  whileHover={{ y: -6, transition: { duration: 0.22, ease: "easeOut" } }}
                   viewport={{ once: true }}
-                  transition={{ delay: i * 0.12, duration: 0.65 }}
-                  className="group relative rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col flex-1"
+                  transition={{ delay: i * 0.13, duration: 0.7, ease: luxuryEase }}
+                  className="group relative rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-md transition-shadow duration-300 cursor-pointer flex flex-col flex-1"
                 >
                   <div className="relative h-40 overflow-hidden shrink-0">
                     <img
                       src={post.image}
                       alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 ease-out"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                     <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider text-white">
@@ -926,17 +1220,18 @@ export default function App() {
             {posts.slice(3).map((post, i) => (
               <motion.article
                 key={post.id}
-                initial={{ opacity: 0, y: 28 }}
+                initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -7, transition: { duration: 0.22, ease: "easeOut" } }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.65 }}
-                className="group rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-md transition-all duration-300 cursor-pointer flex flex-col"
+                transition={{ delay: i * 0.1, duration: 0.7, ease: luxuryEase }}
+                className="group rounded-[28px] overflow-hidden bg-white border border-stone-200 hover:border-stone-300 hover:shadow-md transition-shadow duration-300 cursor-pointer flex flex-col"
               >
                 <div className="relative h-44 overflow-hidden shrink-0">
                   <img
                     src={post.image}
                     alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-600 ease-out"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                   <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider text-white">
@@ -964,40 +1259,55 @@ export default function App() {
         </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────────────── */}
+      {/* ── FOOTER ───────────────────────────────────────────────────── */}
       <footer className="bg-[#0c0d11] text-white px-6 md:px-8 pt-20 pb-8">
         <div className="max-w-7xl mx-auto">
 
-          {/* Top grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 md:gap-12 pb-16 border-b border-white/[0.08]">
-
+          {/* Top grid — staggered entrance */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={{
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.09 } },
+            }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 md:gap-12 pb-16 border-b border-white/[0.08]"
+          >
             {/* Brand col */}
-            <div className="sm:col-span-2 lg:col-span-4">
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: luxuryEase } } }}
+              className="sm:col-span-2 lg:col-span-4"
+            >
               <p className="text-2xl font-display font-bold tracking-[0.2em] mb-4">BRICKLY</p>
               <p className="text-white/45 text-sm leading-relaxed max-w-xs mb-8">
                 Bay Area's trusted boutique real estate agency — helping families buy, sell, and invest with clarity since 2012.
               </p>
-              {/* Social icons */}
               <div className="flex items-center gap-3">
                 {[
                   { icon: <IconInstagram />, label: "Instagram" },
-                  { icon: <IconX />,         label: "X" },
-                  { icon: <IconLinkedin />,  label: "LinkedIn" },
+                  { icon: <IconX />, label: "X" },
+                  { icon: <IconLinkedin />, label: "LinkedIn" },
                 ].map(({ icon, label }) => (
-                  <a
+                  <motion.a
                     key={label}
                     href="#"
                     aria-label={label}
-                    className="w-9 h-9 flex items-center justify-center rounded-full border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-all"
+                    whileHover={{ scale: 1.12, transition: { duration: 0.18 } }}
+                    whileTap={{ scale: 0.95 }}
+                    className="w-9 h-9 flex items-center justify-center rounded-full border border-white/10 text-white/40 hover:text-white hover:border-white/30 transition-colors"
                   >
                     {icon}
-                  </a>
+                  </motion.a>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            {/* Quick links */}
-            <div className="lg:col-span-2">
+            {/* Navigation */}
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: luxuryEase } } }}
+              className="lg:col-span-2"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/30 mb-5">Navigation</p>
               <ul className="space-y-3">
                 {["Home", "About", "Properties", "Agents", "Blog"].map(link => (
@@ -1008,10 +1318,13 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </motion.div>
 
-            {/* Properties links */}
-            <div className="lg:col-span-2">
+            {/* Properties */}
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: luxuryEase } } }}
+              className="lg:col-span-2"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/30 mb-5">Properties</p>
               <ul className="space-y-3">
                 {["For Sale", "For Rent", "New Listings", "Open Houses", "Price Reduced"].map(item => (
@@ -1022,10 +1335,13 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </motion.div>
 
             {/* Neighborhoods */}
-            <div className="lg:col-span-2">
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: luxuryEase } } }}
+              className="lg:col-span-2"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/30 mb-5">Neighborhoods</p>
               <ul className="space-y-3">
                 {["Pacific Heights", "The Marina", "Noe Valley", "Oakland", "Palo Alto", "Tiburon"].map(n => (
@@ -1036,10 +1352,13 @@ export default function App() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </motion.div>
 
             {/* Contact */}
-            <div className="lg:col-span-2">
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 24 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: luxuryEase } } }}
+              className="lg:col-span-2"
+            >
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-white/30 mb-5">Contact</p>
               <ul className="space-y-4">
                 <li className="flex items-start gap-3 text-white/55 text-sm">
@@ -1055,11 +1374,17 @@ export default function App() {
                   2180 Union St, Suite 4<br />San Francisco, CA 94123
                 </li>
               </ul>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
           {/* Bottom bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8"
+          >
             <p className="text-white/25 text-xs">
               © 2026 Brickly Real Estate. All rights reserved.
             </p>
@@ -1070,7 +1395,7 @@ export default function App() {
                 </a>
               ))}
             </div>
-          </div>
+          </motion.div>
 
         </div>
       </footer>
